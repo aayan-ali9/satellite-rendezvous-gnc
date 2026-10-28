@@ -1,0 +1,5 @@
+acceleration_limit,status,delta_v,minimum_separation,reason
+0.001,FAIL,,,Stage 1: waypoint not reached; best position error=1610.521 m; best velocity error=0.45515 m/s; best normalized error=322.104; peak requested accel=0.057874 m/s^2
+0.00155,FAIL,,,Final waypoint not accepted
+0.001575,PASS,17.922036792541842,29.452746481842645,
+0.002,PASS,10.81608758420838,29.402677437187794,

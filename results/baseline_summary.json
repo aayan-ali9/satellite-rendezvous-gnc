@@ -1,0 +1,38 @@
+{
+  "model": "uncontrolled HCW; radial/along-track/orbit-normal LVLH",
+  "altitude_m": 500000.0,
+  "mean_motion_rad_s": 0.0011067834463349404,
+  "orbital_period_s": 5676.978028525859,
+  "initial_state_m_m_s": [
+    200.0,
+    -995.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "final_state_m_m_s": [
+    200.000000023946,
+    -16074.644737228797,
+    0.0,
+    1.1980295228086746e-12,
+    -5.300688287281953e-11,
+    0.0
+  ],
+  "duration_s": 11353.956057051719,
+  "sample_count": 1201,
+  "solver": {
+    "method": "RK45",
+    "rtol": 1e-11,
+    "atol": 1e-12
+  },
+  "initial_range_m": 1014.9014730504632,
+  "final_range_m": 16075.888884541564,
+  "max_position_difference_m": 4.4774131071113564e-08,
+  "max_velocity_difference_m_s": 5.30204270651924e-11,
+  "versions": {
+    "python": "3.11.9",
+    "numpy": "2.4.6",
+    "scipy": "1.17.1"
+  }
+}
