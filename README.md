@@ -14,6 +14,19 @@ The simulated chaser spacecraft autonomously approaches a target from approximat
 
 Waypoint transitions are governed by position and velocity acceptance tolerances. Control accelerations are limited to represent finite actuator authority, and a 25 m screening boundary is monitored during propagation.
 
+
+### Nonlinear Rendezvous Trajectory
+
+![Nonlinear Rendezvous Trajectory](figures/nonlinear_trajectory.png)
+
+*Figure 1. Simulated chaser trajectory in the LVLH reference frame during the autonomous three-waypoint rendezvous.*
+
+### Final Approach and Safety Boundaries
+
+![Final Approach Safety](figures/final_approach_safety.png)
+
+*Figure 2. Close-range approach trajectory relative to the 25 m screening boundary and 20 m keep-out boundary.*
+
 ## Technical Implementation
 
 **Orbital Dynamics**
@@ -68,13 +81,28 @@ The observed 98.1% success rate is specific to the selected test scenarios and s
 
 ## Simulation Figures
 
-The `figures/` directory contains visualizations of:
 
-- Full nonlinear rendezvous trajectory.
-- Final approach relative to the screening and keep-out boundaries.
-- Final holding separation versus time.
-- Mission success versus available acceleration.
-- Total maneuver Δv versus available acceleration.
+## Sensitivity Analysis Figures
+
+The acceleration-authority study evaluates the response of a challenging initial condition to different maximum control accelerations.
+
+### Mission Success vs. Control Authority
+
+![Acceleration Sensitivity](figures/acceleration_success.png)
+
+*Figure 3. Mission success or failure as the available control acceleration changes.*
+
+### Maneuver Delta-v vs. Control Authority
+
+![Acceleration Delta V](figures/acceleration_delta_v.png)
+
+*Figure 4. Cumulative maneuver delta-v for successful runs at different acceleration limits.*
+
+### Final Holding Performance
+
+![Final Holding Separation](figures/final_holding_separation.png)
+
+*Figure 5. Relative separation during the final 30 m holding phase of the nominal mission.*
 
 ## Installation and Execution
 
@@ -119,12 +147,4 @@ The simulation demonstrates a preliminary GN&C architecture and its modeled perf
 
 Python, NumPy, SciPy, Matplotlib, pytest.
 
-**Project focus:** Orbital mechanics, spacecraft guidance and control, nonlinear simulation, numerical validation, and Monte Carlo and Sensitivity Analysis.
-
-### Nonlinear Rendezvous Trajectory
-
-![Nonlinear Rendezvous Trajectory](figures/nonlinear_trajectory.png)
-
-### Final Approach and Safety Boundaries
-
-![Final Approach Safety](figures/final_approach_safety.png)
+Project focus: Orbital mechanics, autonomous spacecraft guidance and control, nonlinear dynamics, numerical verification, and sensitivity analysis.
