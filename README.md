@@ -38,6 +38,7 @@ Waypoint transitions are governed by position and velocity acceptance tolerances
 
 **Guidance and Control**
 
+For the controller formulation, weighting matrices, and implementation assumptions, see the [LQR Controller Design](docs/lqr_controller_design.md) documentation.
 - Designed a continuous-time LQR controller using state-space dynamics and the algebraic Riccati equation.
 - Implemented autonomous waypoint transitions using position and velocity tolerances.
 - Enforced a maximum control acceleration of 0.001 m/s² for the baseline mission.
