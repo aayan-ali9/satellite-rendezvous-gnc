@@ -28,3 +28,5 @@ Thumbs.db
 *.log
 # Intermediate experiment archives
 results/archive/
+# Local Matplotlib configuration
+.mplconfig/
