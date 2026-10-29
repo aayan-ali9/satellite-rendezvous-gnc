@@ -1,1 +1,1 @@
-"""Starter package for the autonomous spacecraft rendezvous project."""
+"""Orbital dynamics, guidance, and control for satellite rendezvous."""
