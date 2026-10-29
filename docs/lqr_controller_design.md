@@ -1,186 +1,241 @@
-
 # LQR Controller Design
 
-## 1. Objective
+## Overview
 
-The controller guides a chaser spacecraft toward successive
-relative-position waypoints while limiting available thrust
-acceleration.
+I used a Linear Quadratic Regulator (LQR) to control the chaser spacecraft during the rendezvous simulation.
 
-The controller is designed using linearized Hill-Clohessy-
-Wiltshire (HCW) dynamics and evaluated using a separate,
-nonlinear two-body orbital simulation.
+The goal of the controller is to reduce the chaser's position and velocity errors relative to a desired waypoint while avoiding unnecessarily large acceleration commands.
 
-## 2. Relative Motion Model
+I designed the controller using the linear HCW equations and tested it using nonlinear two-body orbital propagation.
 
-The target-centered LVLH state is
+## 1. State-Space Model
 
-s = [x, y, z, vx, vy, vz]^T
+LQR uses a linear state-space model of the form
 
-where x is radial, y is along-track, and z is cross-track.
+$$
+\dot{\mathbf{s}}=A\mathbf{s}+B\mathbf{u}
+$$
 
-The HCW equations with control acceleration are:
+For this project, the state vector contains the chaser's relative position and velocity in the LVLH reference frame:
 
-    x_ddot = 3*n^2*x + 2*n*vy + ax
-    y_ddot = -2*n*vx + ay
-    z_ddot = -n^2*z + az
+$$
+\mathbf{s}=
+\begin{bmatrix}
+x&y&z&v_x&v_y&v_z
+\end{bmatrix}^{T}
+$$
 
-These equations are written in state-space form:
+The control vector contains the commanded acceleration along each LVLH axis:
 
-    s_dot = A*s + B*u
+$$
+\mathbf{u}=
+\begin{bmatrix}
+a_x&a_y&a_z
+\end{bmatrix}^{T}
+$$
 
-where u = [ax, ay, az]^T.
+I constructed the state-space matrices from the HCW equations. The implementation is in `rendezvous/lqr.py`.
 
-The A and B matrices are implemented in
-`rendezvous/lqr.py`.
+This lets me use a standard linear control method to calculate the acceleration needed to correct the spacecraft's relative motion.
 
-The target follows a circular reference orbit at
-500 km altitude.
+## 2. LQR Feedback Control
 
-## 3. Linear Quadratic Regulator
+The controller compares the current state with the desired waypoint state.
 
-For a desired waypoint state, define the tracking error:
+The tracking error is
 
-    e = s - s_target
+$$
+\mathbf{e}=\mathbf{s}-\mathbf{s}_{desired}
+$$
 
-The requested feedback acceleration is:
+The requested acceleration is calculated using
 
-    u_requested = -K*e
+$$
+\mathbf{u}_{requested}=-K\mathbf{e}
+$$
 
-The LQR gain minimizes the infinite-horizon quadratic
-cost for the unconstrained linear system:
+where \(K\) is the LQR feedback gain matrix.
 
-    J = integral(e^T*Q*e + u^T*R*u) dt
+The negative sign provides feedback that acts to reduce the state error.
 
-The gain is obtained from the continuous-time algebraic
-Riccati equation:
+LQR calculates the gain by balancing two objectives:
 
-    A^T*P + P*A - P*B*R^-1*B^T*P + Q = 0
+- Reducing the spacecraft's position and velocity errors.
+- Avoiding unnecessarily large control accelerations.
 
-    K = R^-1*B^T*P
+The mathematical cost function is
 
-The implementation uses SciPy's
-`solve_continuous_are` function.
+$$
+J=\int_0^\infty
+\left(
+\mathbf{e}^{T}Q\mathbf{e}
++
+\mathbf{u}^{T}R\mathbf{u}
+\right)dt
+$$
 
-## 4. Controller Weighting Matrices
+Here, \(Q\) weights the state errors and \(R\) weights the control effort.
 
-The current implementation uses:
+I used SciPy's `solve_continuous_are` function to solve the continuous-time algebraic Riccati equation and then calculate the feedback gain.
 
-    Q = diag(1e-6, 1e-6, 1e-6,
-             1e-2, 1e-2, 1e-2)
+The gain is
 
-    R = 1e6 * I_3
+$$
+K=R^{-1}B^TP
+$$
 
-Q penalizes relative-position and relative-velocity
-errors, while R penalizes commanded acceleration.
+where \(P\) is the solution to the Riccati equation.
 
-These values form the controller's current design
-configuration. They have not been established as
-globally optimal through a systematic tuning study.
+I did not implement a Riccati equation solver from scratch. My implementation builds the spacecraft state-space model, specifies the controller weights, computes the gain using SciPy, and applies that gain during the simulation.
 
-Because position, velocity, and acceleration have
-different physical units, numerical weight magnitudes
-should not be interpreted as dimensionless measures
-of engineering importance.
+## 3. Controller Weights
 
-## 5. Acceleration Saturation
+The controller uses the following matrices:
 
-Real spacecraft cannot generate unlimited acceleration.
+$$
+Q=\operatorname{diag}
+\left(
+10^{-6},10^{-6},10^{-6},
+10^{-2},10^{-2},10^{-2}
+\right)
+$$
 
-The baseline simulation enforces:
+$$
+R=10^6I_3
+$$
 
-    maximum acceleration = 0.001 m/s^2
+The first three entries of \(Q\) penalize relative-position errors, while the last three penalize relative-velocity errors.
 
-If the requested acceleration magnitude exceeds this
-limit, the command is scaled to preserve its direction:
+The \(R\) matrix penalizes commanded acceleration.
 
-    u_applied = u_requested * (
-        a_max / ||u_requested||
-    )
+Changing these matrices affects the controller's response. For example, increasing the penalty on control effort generally produces a less aggressive unconstrained controller, while increasing the state-error penalties generally encourages faster correction.
 
-Otherwise, the requested command is applied unchanged.
+However, these relationships are more complicated once acceleration limits and nonlinear dynamics are included.
 
-This limits the magnitude of the complete three-axis
-acceleration vector, rather than clipping each axis
-independently.
+The selected weights form the controller configuration used in this project. I did not perform a comprehensive optimization to prove that these values are the best possible choice.
 
-Acceleration saturation means the implemented controller
-is no longer the unconstrained optimal LQR solution.
+## 4. Acceleration Limits
 
-## 6. Waypoint Guidance
+One important part of the implementation is that the controller cannot apply unlimited acceleration.
 
-The guidance sequence uses along-track waypoints:
+For the baseline mission, I used a maximum acceleration magnitude of
 
-    Stage 1: [0, -200, 0] m
-    Stage 2: [0,  -50, 0] m
-    Stage 3: [0,  -30, 0] m
+$$
+a_{max}=0.001\ \mathrm{m/s^2}
+$$
+
+The LQR controller first calculates the acceleration it would like to apply.
+
+If the requested acceleration exceeds the maximum magnitude, the command is scaled down while preserving its direction.
+
+For a requested vector above the limit,
+
+$$
+\mathbf{u}_{applied}
+=
+\mathbf{u}_{requested}
+\frac{a_{max}}
+{\|\mathbf{u}_{requested}\|}
+$$
+
+Otherwise, the requested acceleration is applied without modification.
+
+This is implemented in `rendezvous/control.py`.
+
+An important distinction is that LQR gives the optimal feedback gain for the selected linear model and quadratic cost without this acceleration constraint. Once the acceleration is limited, the complete controller is no longer guaranteed to have the same optimality properties.
+
+## 5. Waypoint Guidance
+
+The mission uses three target positions in LVLH:
+
+| Stage | Desired relative position |
+|---|---|
+| 1 | [0, −200, 0] m |
+| 2 | [0, −50, 0] m |
+| 3 | [0, −30, 0] m |
 
 The desired relative velocity at each waypoint is zero.
 
-Intermediate waypoint transitions require:
+The first two waypoint transitions require:
 
-    Position error <= 5.0 m
-    Velocity error <= 0.10 m/s
+- Position error no greater than 5 m.
+- Velocity error no greater than 0.10 m/s.
 
-These along-track stationary states are equilibria of
-the ideal HCW model, so no nonzero linear-model holding
-feedforward acceleration is required.
+Both conditions must be satisfied before the controller transitions to the next waypoint.
 
-The final 30 m stage is propagated through the remaining
-simulation duration, with final acceptance checked at
-the end.
+During the last stage, the simulation continues through the remaining mission time and evaluates the final position and velocity errors.
 
-## 7. Nonlinear Simulation
+I selected along-track holding positions because these are stationary equilibria in the ideal HCW model when the radial and cross-track offsets are zero.
 
-Although the controller is designed using HCW dynamics,
-the mission simulation propagates both spacecraft using
-nonlinear two-body gravitational dynamics in ECI.
+## 6. Combining LQR with Nonlinear Dynamics
 
-At each integration evaluation:
+Although the controller is designed using HCW equations, the final simulation does not propagate the spacecraft using HCW alone.
 
-1. Convert the spacecraft states into relative LVLH.
-2. Calculate the LQR tracking error.
-3. Calculate the requested control acceleration.
-4. Apply the acceleration magnitude limit.
-5. Convert the applied acceleration from LVLH to ECI.
-6. Propagate the spacecraft under gravity and control.
+Instead, I calculate the motion of both spacecraft using nonlinear two-body gravity in ECI coordinates.
 
-The applied acceleration magnitude is integrated over
-time to estimate cumulative maneuver delta-v.
+During each evaluation of the nonlinear dynamics:
 
-## 8. Validation and Limitations
+1. The target and chaser positions and velocities are represented in ECI.
+2. The simulation converts them into a relative LVLH state.
+3. The controller calculates the position and velocity errors relative to the current waypoint.
+4. The LQR gain produces a requested acceleration.
+5. The acceleration limit is applied.
+6. The applied acceleration is transformed from LVLH to ECI.
+7. The target and chaser states are propagated using nonlinear two-body gravity, with control acceleration applied only to the chaser.
 
-The project includes automated unit and regression tests,
-linear/nonlinear dynamics comparisons, and numerical
-integration checks.
+The nonlinear controlled dynamics are implemented in `rendezvous/nonlinear_control.py`.
 
-The nominal simulation produces approximately:
+This arrangement allowed me to design the controller using a simpler linear model while evaluating its behavior under more realistic orbital equations.
 
-- Total maneuver delta-v: 1.026717 m/s
-- Minimum separation: 29.520 m
-- Final position error: 0.000533 m
+## 7. Measuring Performance
 
-These results demonstrate the implemented controller's
-performance under idealized numerical assumptions.
+The main performance metrics are:
 
-Important limitations include:
+- Final position error.
+- Final relative velocity error.
+- Minimum separation from the target.
+- Estimated total maneuver delta-v.
+- Whether the mission completed its waypoint sequence.
 
-- Perfect relative-state knowledge
-- Continuous, perfectly directed acceleration
-- No navigation measurement noise
-- No J2, atmospheric drag, or third-body perturbations
-- No discrete thruster or attitude-control dynamics
-- No formal collision-avoidance guarantee
+The maneuver delta-v is estimated from
 
-LQR optimality applies to the unconstrained linearized
-design model, not automatically to the saturated,
-nonlinear mission simulation.
+$$
+\Delta v=\int_0^{t_f}
+\|\mathbf{u}_{applied}(t)\|dt
+$$
 
-## 9. Implementation References
+I used numerical trapezoidal integration to estimate this quantity from the simulated acceleration history.
 
-- `rendezvous/lqr.py` - HCW matrices and LQR gain
-- `rendezvous/control.py` - Acceleration saturation
-- `rendezvous/nonlinear_control.py` - ECI dynamics and control
-- `rendezvous/mission.py` - Mission configuration and guidance
-- `tests/test_lqr.py` - Controller verification
-- `tests/test_mission_regression.py` - Mission regression tests
+This represents accumulated control acceleration expressed as an equivalent delta-v. It is not a detailed propellant-consumption calculation.
+
+For the unperturbed baseline simulation, the estimated total delta-v was approximately 1.027 m/s, with a minimum separation of approximately 29.52 m.
+
+## 8. Testing and Limitations
+
+I tested the controller using automated Python tests, numerical comparisons, and simulations with different initial conditions.
+
+I also ran a sensitivity study to investigate a challenging case where the baseline acceleration limit was insufficient to reach the first waypoint.
+
+By increasing the available acceleration, I observed that the same initial condition could complete the mission.
+
+These results helped me understand the relationship between control authority and mission performance for the tested conditions.
+
+However, the project still makes several simplifying assumptions:
+
+- The controller receives exact relative-position and velocity information.
+- The spacecraft can produce continuous acceleration in any direction.
+- Orbital perturbations and navigation sensor errors are not included.
+- The simulation does not model individual thrusters or attitude-control dynamics.
+- The screening-boundary check is not a formal collision-avoidance guarantee.
+
+The results demonstrate the implemented controller's behavior within the simulated conditions, not guaranteed performance for an actual spacecraft.
+
+## Related Files
+
+- `rendezvous/lqr.py` — LQR gain and state-space model.
+- `rendezvous/control.py` — Acceleration limiting.
+- `rendezvous/guidance.py` — Waypoint acceptance.
+- `rendezvous/nonlinear_control.py` — Controlled nonlinear dynamics.
+- `rendezvous/mission.py` — Mission sequence and performance calculations.
+- `tests/test_lqr.py` — LQR controller tests.
+- `tests/test_mission_regression.py` — Mission regression tests.

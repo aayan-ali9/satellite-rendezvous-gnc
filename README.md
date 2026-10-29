@@ -1,151 +1,204 @@
 # Autonomous Satellite Rendezvous Using LQR Control
 
-A Python-based spacecraft guidance, navigation, and control simulation demonstrating autonomous multi-waypoint rendezvous in low Earth orbit.
+A Python simulation I developed to explore autonomous spacecraft rendezvous using orbital mechanics, feedback control, and numerical simulation.
 
-Developed and validated an autonomous satellite rendezvous simulation using HCW dynamics, nonlinear two-body propagation, and LQR control, with Monte Carlo simulations and sensitivity studies to evaluate mission performance under varying initial conditions.
+The project models a chaser spacecraft approaching a target satellite in low Earth orbit. I used Hill–Clohessy–Wiltshire (HCW) equations to design an LQR controller, then tested its performance using a separate nonlinear two-body orbital simulation.
 
-## Project Overview
+I also evaluated how the system responds to different initial conditions and available control accelerations.
 
-The simulated chaser spacecraft autonomously approaches a target from approximately 1 km away, transitioning through three relative-position waypoints:
+## Mission Overview
 
-- **Waypoint 1:** 200 m
-- **Waypoint 2:** 50 m
-- **Waypoint 3:** 30 m final holding position
+The goal is to guide a chaser spacecraft from approximately 1 km away to a final holding position 30 m behind the target.
 
-Waypoint transitions are governed by position and velocity acceptance tolerances. Control accelerations are limited to represent finite actuator authority, and a 25 m screening boundary is monitored during propagation.
+The mission uses three along-track waypoints:
 
+| Stage | Desired position |
+|---|---|
+| 1 | 200 m behind the target |
+| 2 | 50 m behind the target |
+| 3 | 30 m behind the target (final hold) |
 
-### Nonlinear Rendezvous Trajectory
+The controller continuously adjusts the chaser's acceleration to reduce its position and velocity errors relative to the current waypoint.
+
+The simulation uses:
+
+- A 500 km circular reference orbit.
+- A baseline maximum acceleration of 0.001 m/s².
+- A 5 m position tolerance and 0.10 m/s velocity tolerance for waypoint acceptance.
+- A 25 m screening boundary monitored during the simulated approach.
+
+### Simulated Rendezvous Trajectory
 
 ![Nonlinear Rendezvous Trajectory](figures/nonlinear_trajectory.png)
 
-*Figure 1. Simulated chaser trajectory in the LVLH reference frame during the autonomous three-waypoint rendezvous.*
+*Figure 1. Simulated three-waypoint approach shown in the target-centered LVLH frame.*
 
 ### Final Approach and Safety Boundaries
 
 ![Final Approach Safety](figures/final_approach_safety.png)
 
-*Figure 2. Close-range approach trajectory relative to the 25 m screening boundary and 20 m keep-out boundary.*
+*Figure 2. Close-up of the final approach, including the 25 m screening boundary and 20 m keep-out reference.*
 
-## Technical Implementation
+These figures show a simulated approach with a small initial velocity perturbation.
 
-**Orbital Dynamics**
+## How the Simulation Works
 
-- Implemented HCW relative-motion equations in the Local Vertical Local Horizontal (LVLH) reference frame.
-- Implemented nonlinear two-body orbital propagation in Earth-Centered Inertial (ECI) coordinates.
-- Developed ECI–LVLH position and velocity transformations.
-- Compared analytical HCW solutions, numerical HCW propagation, and nonlinear orbital dynamics.
+The project combines a linear controller with nonlinear orbital dynamics.
 
-**Guidance and Control**
+**1. Relative orbital motion**
 
-For the controller formulation, weighting matrices, and implementation assumptions, see the [LQR Controller Design](docs/lqr_controller_design.md) documentation.
-- Designed a continuous-time LQR controller using state-space dynamics and the algebraic Riccati equation.
-- Implemented autonomous waypoint transitions using position and velocity tolerances.
-- Enforced a maximum control acceleration of 0.001 m/s² for the baseline mission.
-- Integrated applied acceleration magnitude to estimate cumulative maneuver Δv.
+I implemented the HCW equations to model how a spacecraft moves relative to another spacecraft in a circular reference orbit.
 
-**Validation and Sensitivity Analysis**
+The equations are useful for controller design because they describe relative position and velocity in a target-centered LVLH coordinate system.
 
-- Verified numerical convergence using solver step-size and tolerance refinements.
-- Developed automated unit and regression tests.
-- Evaluated initial position and velocity perturbations through reproducible Monte Carlo experiments.
-- Conducted an acceleration-authority sensitivity study for a challenging initial condition.
+**2. LQR feedback control**
 
-## Nominal Mission Results
+I used the HCW state-space model to implement a Linear Quadratic Regulator (LQR).
 
-| Performance metric | Simulated result |
+The controller compares the current relative state with the desired waypoint and calculates the acceleration needed to reduce the error.
+
+The LQR gain is calculated using SciPy's algebraic Riccati equation solver.
+
+**3. Nonlinear orbital simulation**
+
+To test the controller beyond the linear HCW model, I implemented nonlinear two-body gravitational propagation for both spacecraft in Earth-Centered Inertial (ECI) coordinates.
+
+During propagation, the simulation converts the spacecraft states into LVLH, calculates the control acceleration, applies the acceleration limit, and converts the command back to ECI.
+
+**4. Autonomous waypoint transitions**
+
+The chaser moves through the 200 m, 50 m, and 30 m waypoints. The first two transitions occur when both the position and velocity errors are within their allowed tolerances.
+
+At the final waypoint, the simulation continues through the remaining mission time to evaluate holding performance.
+
+**5. Performance evaluation**
+
+The simulation records separation distance, final position and velocity errors, and estimated maneuver delta-v.
+
+I estimate maneuver delta-v by numerically integrating the magnitude of the applied control acceleration over time.
+
+For more detail, see the [HCW State-Space Model](docs/hcw_state_space.md) and [LQR Controller Design](docs/lqr_controller_design.md).
+
+## Simulation Results
+
+The unperturbed baseline mission produced the following results:
+
+| Metric | Result |
 |---|---|
 | Final holding distance | 30 m |
-| Minimum separation | 29.520 m |
-| Total maneuver Δv | 1.026717 m/s |
-| Final position error | 0.000533 m |
-| Final velocity error | 0.000001119 m/s |
+| Minimum separation | Approximately 29.52 m |
+| Total maneuver delta-v | Approximately 1.027 m/s |
+| Final position error | Approximately 0.00053 m |
+| Final velocity error | Approximately 0.0000011 m/s |
 | Maximum available acceleration | 0.001 m/s² |
 | Final waypoint acceptance | PASS |
 
-These results represent idealized numerical simulations, not flight-demonstrated performance.
+These results are from an idealized numerical model with perfect relative-state information. The very small final errors reflect the simulation assumptions and should not be interpreted as achievable real-world navigation accuracy.
 
-## Monte Carlo and Sensitivity Analysis
+## Initial-Condition and Sensitivity Analysis
 
-A 52-scenario initial-condition study produced 51 successful missions and one failure under the baseline acceleration limit.
+After completing the baseline mission, I tested how the controller performed with changes to the chaser's initial position and velocity.
 
-The failed scenario, `extreme50_03`, did not satisfy the first waypoint acceptance conditions within the simulation duration.
+I ran 52 reproducible test scenarios with different levels of initial-state perturbation.
 
-A subsequent control-authority sensitivity study identified:
+- **51 scenarios completed successfully.**
+- **1 scenario failed to reach the first waypoint within the simulation time.**
 
-- **0.001550 m/s²:** Mission failed.
-- **0.001575 m/s²:** Mission succeeded.
+I then investigated the failed scenario by testing different maximum control accelerations.
 
-This represents an empirical failure-to-success interval for the tested initial condition and the implemented controller, not a universal minimum acceleration requirement.
+For this particular case, the simulation failed at 0.001550 m/s² but succeeded at 0.001575 m/s².
 
-The observed 98.1% success rate is specific to the selected test scenarios and should not be interpreted as real-world mission reliability.
+This showed how the available acceleration affected whether the controller could complete the mission under the selected conditions. The results do not establish a universal minimum acceleration requirement or real-world mission reliability.
 
-## Simulation Figures
-
-
-## Sensitivity Analysis Figures
-
-The acceleration-authority study evaluates the response of a challenging initial condition to different maximum control accelerations.
-
-### Mission Success vs. Control Authority
+### Mission Success vs. Available Acceleration
 
 ![Acceleration Sensitivity](figures/acceleration_success.png)
 
-*Figure 3. Mission success or failure as the available control acceleration changes.*
+*Figure 3. Simulated success and failure outcomes for the challenging initial condition at different acceleration limits.*
 
-### Maneuver Delta-v vs. Control Authority
+### Maneuver Delta-v vs. Available Acceleration
 
 ![Acceleration Delta V](figures/acceleration_delta_v.png)
 
-*Figure 4. Cumulative maneuver delta-v for successful runs at different acceleration limits.*
+*Figure 4. Estimated maneuver delta-v for successful runs in the acceleration sensitivity study.*
 
 ### Final Holding Performance
 
 ![Final Holding Separation](figures/final_holding_separation.png)
 
-*Figure 5. Relative separation during the final 30 m holding phase of the nominal mission.*
+*Figure 5. Spacecraft separation during the simulated final holding phase.*
 
-## Installation and Execution
+## Project Structure
 
-Requires Python and the dependencies listed in `requirements.txt`.
+| Directory | Contents |
+|---|---|
+| `rendezvous/` | Orbital dynamics, coordinate transformations, guidance, and control |
+| `scripts/` | Mission simulations, model comparisons, and sensitivity studies |
+| `tests/` | Automated tests for the simulation and controller |
+| `figures/` | Trajectory and performance plots |
+| `results/` | Saved simulation results |
+| `docs/` | Technical explanations of the HCW model and LQR controller |
 
-Install dependencies:
+The reusable mission simulation is implemented in `rendezvous/mission.py`, while `rendezvous/nonlinear_control.py` handles the controlled nonlinear equations of motion.
 
-`python -m pip install -r requirements.txt`
+## Running the Project
 
-Run the nonlinear rendezvous simulation:
+The project uses Python with NumPy, SciPy, Matplotlib, and pytest.
 
-`python -m scripts.run_nonlinear_three_waypoints`
+Install the required packages:
 
-Run the Monte Carlo robustness study:
+```powershell
+python -m pip install -r requirements.txt
+```
 
-`python -m scripts.run_robustness_sweep`
+Run the nonlinear three-waypoint simulation:
 
-Run the acceleration-authority sensitivity study:
+```powershell
+python -m scripts.run_nonlinear_three_waypoints
+```
 
-`python -m scripts.run_acceleration_study`
+Run the initial-condition study:
 
-Generate acceleration study figures:
+```powershell
+python -m scripts.run_robustness_sweep
+```
 
-`python -m scripts.plot_acceleration_sweep`
+Run the acceleration sensitivity study:
 
-Run automated tests:
+```powershell
+python -m scripts.run_acceleration_study
+```
 
-`python -m pytest -q -p no:cacheprovider`
+Generate the acceleration sensitivity figures from the saved sweep datasets:
 
-## Model Assumptions and Limitations
+```powershell
+python -m scripts.plot_acceleration_sweep
+```
 
-- Circular target reference orbit.
-- Ideal nonlinear two-body gravitational dynamics.
-- Continuous, perfectly directed thrust acceleration.
-- Exact simulated relative-state feedback without navigation measurement noise.
-- No J2 perturbations, atmospheric drag, or third-body gravitational effects.
-- Nominal separation-boundary monitoring rather than probabilistic collision-avoidance guarantees.
+Run the automated tests:
 
-The simulation demonstrates a preliminary GN&C architecture and its modeled performance under specified conditions. Future extensions could include navigation uncertainty, orbital perturbations, discrete thruster actuation, and more comprehensive safety analysis.
+```powershell
+python -m pytest -q -p no:cacheprovider
+```
 
-## Technologies
+## Assumptions and Limitations
 
-Python, NumPy, SciPy, Matplotlib, pytest.
+This is an engineering simulation, not flight-ready rendezvous software.
 
-Project focus: Orbital mechanics, autonomous spacecraft guidance and control, nonlinear dynamics, numerical verification, and sensitivity analysis.
+The main simplifying assumptions are:
+
+- The target begins in a circular reference orbit.
+- Gravity is modeled using the two-body approximation.
+- Control acceleration is continuous and can be applied in any direction.
+- Relative position and velocity are assumed to be known exactly.
+- Navigation sensor noise and state-estimation errors are not modeled.
+- Orbital perturbations such as J2 and atmospheric drag are not included.
+- The separation checks do not provide a formal collision-avoidance guarantee.
+
+The project focuses on implementing and testing a preliminary spacecraft guidance and control system under these assumptions.
+
+## Tools
+
+**Python, NumPy, SciPy, Matplotlib, pytest**
+
+**Engineering topics:** Orbital mechanics, HCW relative motion, LQR control, nonlinear simulation, coordinate transformations, and sensitivity analysis.
