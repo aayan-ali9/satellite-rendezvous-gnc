@@ -30,3 +30,11 @@ Thumbs.db
 results/archive/
 # Local Matplotlib configuration
 .mplconfig/
+
+# Private development notes and superseded drafts
+docs/roadmap.md
+docs/learning_checklist.md
+docs/week1_review.md
+docs/engineering_log.md
+docs/mission_requirements.md
+docs/model_assumptions.md
