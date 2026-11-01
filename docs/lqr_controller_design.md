@@ -92,13 +92,17 @@ I did not implement a Riccati equation solver from scratch. My implementation bu
 
 The controller uses the following matrices:
 
-$$
-Q=\operatorname{diag}
-\left(
-10^{-6},10^{-6},10^{-6},
-10^{-2},10^{-2},10^{-2}
-\right)
-$$
+```math
+Q =
+\begin{bmatrix}
+10^{-6} & 0 & 0 & 0 & 0 & 0 \\
+0 & 10^{-6} & 0 & 0 & 0 & 0 \\
+0 & 0 & 10^{-6} & 0 & 0 & 0 \\
+0 & 0 & 0 & 10^{-2} & 0 & 0 \\
+0 & 0 & 0 & 0 & 10^{-2} & 0 \\
+0 & 0 & 0 & 0 & 0 & 10^{-2}
+\end{bmatrix}
+```
 
 $$
 R=10^6I_3
@@ -130,13 +134,13 @@ If the requested acceleration exceeds the maximum magnitude, the command is scal
 
 For a requested vector above the limit,
 
-$$
-\mathbf{u}_{applied}
-=
-\mathbf{u}_{requested}
-\frac{a_{max}}
-{\|\mathbf{u}_{requested}\|}
-$$
+
+```math
+\mathbf{u}_{\mathrm{applied}} =
+\mathbf{u}_{\mathrm{requested}}
+\frac{a_{\max}}
+{\left\|\mathbf{u}_{\mathrm{requested}}\right\|}
+```
 
 Otherwise, the requested acceleration is applied without modification.
 
