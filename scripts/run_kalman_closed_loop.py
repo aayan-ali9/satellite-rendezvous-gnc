@@ -89,6 +89,7 @@ def propagate(eci, command, t0, t1):
 
 
 
+
 def run_mission(
     use_kalman,
     seed=SEED,
@@ -97,18 +98,21 @@ def run_mission(
     final_hold_m=30.0,
 ):
 
+    # Allow different final holding distances
+    if not np.isfinite(final_hold_m) or not (
+        SCREENING_RANGE < final_hold_m < 50.0
+    ):
+        raise ValueError("Final hold must be between 25 and 50 m")
+
+    # Copy waypoints so the original mission is unchanged
+    waypoints = [wp.copy() for wp in WAYPOINTS]
+    waypoints[2][1] = -final_hold_m
+
+
 
     """Run one complete rendezvous with or without state estimation."""
 
 
-    # Create local waypoints without changing the original mission
-    if not np.isfinite(final_hold_m) or not (
-        SCREENING_RANGE < final_hold_m < 50.0
-    ):
-        raise ValueError("Final hold must be between 25 m and 50 m")
-
-    waypoints = [wp.copy() for wp in WAYPOINTS]
-    waypoints[-1][1] = -final_hold_m
 
     rng = np.random.default_rng(seed)
 
@@ -184,14 +188,14 @@ def run_mission(
         # Check whether the current waypoint is reached
         if stage < 2 and waypoint_reached(
             used_state,
-            WAYPOINTS[stage],
+            waypoints[stage],
             POSITION_TOLERANCE,
             VELOCITY_TOLERANCE,
         ):
             stage += 1
 
         # Calculate LQR control using the selected state
-        error = used_state - WAYPOINTS[stage]
+        error = used_state - waypoints[stage]
         requested = -K @ error
 
         command = saturate_acceleration(
@@ -243,11 +247,11 @@ def run_mission(
 
     # Evaluate final performance using the true state
     position_error = np.linalg.norm(
-        truth[:3] - WAYPOINTS[2][:3]
+        truth[:3] - waypoints[2][:3]
     )
 
     velocity_error = np.linalg.norm(
-        truth[3:] - WAYPOINTS[2][3:]
+        truth[3:] - waypoints[2][3:]
     )
 
     success = (
