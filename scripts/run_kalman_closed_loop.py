@@ -87,7 +87,14 @@ def propagate(eci, command, t0, t1):
     )
 
 
-def run_mission(use_kalman, seed=SEED):
+
+def run_mission(
+    use_kalman,
+    seed=SEED,
+    measurement_std=MEASUREMENT_STD,
+    initial_error_scale=1.0,
+):
+
     """Run one complete rendezvous with or without state estimation."""
 
     rng = np.random.default_rng(seed)
@@ -115,7 +122,7 @@ def run_mission(use_kalman, seed=SEED):
     kf = None
 
     if use_kalman:
-        initial_error = np.array([
+        initial_error = initial_error_scale * np.array([
             10.0, -8.0, 6.0,
             0.05, -0.05, 0.05
         ])
@@ -127,14 +134,14 @@ def run_mission(use_kalman, seed=SEED):
             initial_covariance=np.diag(
                 [20.0**2] * 3 + [0.3**2] * 3
             ),
-            position_noise_std=MEASUREMENT_STD,
+            position_noise_std=measurement_std,
             acceleration_noise_std=1e-5,
         )
 
         # First noisy measurement
         measurement = (
             truth[:3]
-            + rng.normal(0.0, MEASUREMENT_STD, 3)
+            + rng.normal(0.0, measurement_std, 3)
         )
         kf.update(measurement)
 
@@ -203,7 +210,7 @@ def run_mission(use_kalman, seed=SEED):
             # Measure relative position with simulated noise
             measurement = (
                 truth[:3]
-                + rng.normal(0.0, MEASUREMENT_STD, 3)
+                + rng.normal(0.0, measurement_std, 3)
             )
 
             # Update the state estimate
