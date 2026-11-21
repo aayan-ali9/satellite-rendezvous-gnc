@@ -88,14 +88,27 @@ def propagate(eci, command, t0, t1):
 
 
 
+
 def run_mission(
     use_kalman,
     seed=SEED,
     measurement_std=MEASUREMENT_STD,
     initial_error_scale=1.0,
+    final_hold_m=30.0,
 ):
 
+
     """Run one complete rendezvous with or without state estimation."""
+
+
+    # Create local waypoints without changing the original mission
+    if not np.isfinite(final_hold_m) or not (
+        SCREENING_RANGE < final_hold_m < 50.0
+    ):
+        raise ValueError("Final hold must be between 25 m and 50 m")
+
+    waypoints = [wp.copy() for wp in WAYPOINTS]
+    waypoints[-1][1] = -final_hold_m
 
     rng = np.random.default_rng(seed)
 
