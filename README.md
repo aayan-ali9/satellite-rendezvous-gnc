@@ -1,16 +1,16 @@
-# Autonomous Satellite Rendezvous Using LQR Control
+# Autonomous Satellite Rendezvous with LQR and Kalman Filtering
 
-A Python simulation I developed to explore autonomous spacecraft rendezvous using orbital mechanics, feedback control, and numerical simulation.
+A Python simulation I developed to explore autonomous spacecraft rendezvous using orbital mechanics, feedback control, and state estimation.
 
-The project models a chaser spacecraft approaching a target satellite in low Earth orbit. I used Hill–Clohessy–Wiltshire (HCW) equations to design an LQR controller, then tested its performance using a separate nonlinear two-body orbital simulation.
+I started by using the Hill–Clohessy–Wiltshire (HCW) equations to design an LQR controller, then tested its performance using a separate nonlinear two-body orbital simulation. I later added a Kalman filter to estimate the spacecraft's relative position and velocity from noisy position measurements.
 
-I also evaluated how the system responds to different initial conditions and available control accelerations.
+I also evaluated how the system responds to different initial conditions, available control accelerations, and measurement noise.
 
 ## Mission Overview
 
-The goal is to guide a chaser spacecraft from approximately 1 km away to a final holding position 30 m behind the target.
+The goal is to guide a chaser spacecraft from approximately 1 km away to a final holding position behind a target satellite in low Earth orbit.
 
-The mission uses three along-track waypoints:
+The original mission uses three along-track waypoints:
 
 | Stage | Desired position |
 |---|---|
@@ -18,7 +18,7 @@ The mission uses three along-track waypoints:
 | 2 | 50 m behind the target |
 | 3 | 30 m behind the target (final hold) |
 
-The controller continuously adjusts the chaser's acceleration to reduce its position and velocity errors relative to the current waypoint.
+The controller adjusts the chaser's acceleration to reduce its position and velocity errors relative to the current waypoint.
 
 The simulation uses:
 
@@ -43,7 +43,7 @@ These figures show a simulated approach with a small initial velocity perturbati
 
 ## How the Simulation Works
 
-The project combines a linear controller with nonlinear orbital dynamics.
+The project combines a linear controller, nonlinear orbital dynamics, and a separate state-estimation model.
 
 **1. Relative orbital motion**
 
@@ -77,11 +77,21 @@ The simulation records separation distance, final position and velocity errors, 
 
 I estimate maneuver delta-v by numerically integrating the magnitude of the applied control acceleration over time.
 
+**6. Kalman state estimation**
+
+I added a discrete Kalman filter that uses the HCW equations to predict the chaser's relative motion and simulated noisy position measurements to correct its estimate.
+
+The filter estimates all six relative-state variables: three positions and three velocities. It does this without directly measuring velocity.
+
+In the extended simulation, the filter and LQR controller update every 10 seconds. The controller uses the estimated relative state rather than the exact simulated state to calculate its acceleration commands.
+
+The spacecraft motion is still propagated using nonlinear two-body dynamics.
+
 For more detail, see the [HCW State-Space Model](docs/hcw_state_space.md) and [LQR Controller Design](docs/lqr_controller_design.md).
 
 ## Simulation Results
 
-The unperturbed baseline mission produced the following results:
+The unperturbed, perfect-state baseline mission produced the following results:
 
 | Metric | Result |
 |---|---|
@@ -128,18 +138,72 @@ This showed how the available acceleration affected whether the controller could
 
 *Figure 5. Spacecraft separation during the simulated final holding phase.*
 
+## Kalman Filtering Extension
+
+After completing the original rendezvous simulation, I wanted to see how the controller would perform without having perfect knowledge of the chaser's position and velocity.
+
+I implemented a Kalman filter using the HCW state-space model and generated noisy relative-position measurements. I first tested the filter separately before connecting it to the nonlinear rendezvous simulation.
+
+The extended simulation allows me to compare the original perfect-state LQR controller against a version that uses estimated states.
+
+### State Estimation and LQR Control
+
+![Kalman Closed Loop](figures/kalman_closed_loop.png)
+
+*Figure 6. Comparison of the perfect-state and Kalman-controlled rendezvous simulations, including trajectory, separation, estimation error, and control acceleration.*
+
+In one reproducible test with 5 m position-measurement noise per axis, the Kalman-controlled mission reached its final waypoint. The position-estimation RMSE was approximately 1.18 m, and the minimum spacecraft separation was approximately 25.39 m.
+
+The estimated-state controller was less accurate than the perfect-state case, which was expected since it had to work with noisy measurements.
+
+### Measurement Noise Sensitivity
+
+I then tested how changes in measurement noise and initial estimation errors affected the mission.
+
+I ran six simulations using two random seeds across three conditions:
+
+- 5 m measurement noise per axis.
+- 10 m measurement noise per axis.
+- 5 m measurement noise with doubled initial estimation error.
+
+Five of the six simulations completed successfully. The unsuccessful case occurred with 10 m measurement noise and reached the 25 m screening boundary.
+
+This showed that the controller could still complete the approach with noisy state estimates, but the original 30 m holding distance left little separation margin in some cases.
+
+### Final Holding Distance Study
+
+To investigate that issue, I tested different final holding distances using the same 10 m measurement-noise case and random seed.
+
+| Final hold | Result | Minimum separation |
+|---|---|---|
+| 30 m | FAIL | 25.00 m |
+| 40 m | PASS | 32.79 m |
+| 45 m | PASS | 37.79 m |
+
+![Kalman Holding Distance Study](figures/kalman_hold_study.png)
+
+*Figure 7. Minimum spacecraft separation for three commanded holding distances under the same noisy-measurement conditions.*
+
+Increasing the final holding distance improved the separation margin for this particular scenario. The 40 m and 45 m cases completed successfully, while the original 30 m case reached the screening boundary.
+
+These results helped me understand how state-estimation errors can affect the final approach and why additional separation margin can be useful.
+
+The sensitivity study uses a small number of simulated cases and does not establish spacecraft reliability or guarantee collision avoidance.
+
 ## Project Structure
 
 | Directory | Contents |
 |---|---|
-| `rendezvous/` | Orbital dynamics, coordinate transformations, guidance, and control |
-| `scripts/` | Mission simulations, model comparisons, and sensitivity studies |
-| `tests/` | Automated tests for the simulation and controller |
+| `rendezvous/` | Orbital dynamics, coordinate transformations, guidance, control, and Kalman filtering |
+| `scripts/` | Mission simulations, model comparisons, estimation experiments, and sensitivity studies |
+| `tests/` | Automated tests for the simulation, controller, and Kalman filter |
 | `figures/` | Trajectory and performance plots |
 | `results/` | Saved simulation results |
 | `docs/` | Technical explanations of the HCW model and LQR controller |
 
-The reusable mission simulation is implemented in `rendezvous/mission.py`, while `rendezvous/nonlinear_control.py` handles the controlled nonlinear equations of motion.
+The reusable original mission simulation is implemented in `rendezvous/mission.py`, while `rendezvous/nonlinear_control.py` handles its controlled nonlinear equations of motion.
+
+The Kalman filter is implemented in `rendezvous/kalman.py`, and the estimated-state rendezvous experiment is in `scripts/run_kalman_closed_loop.py`.
 
 ## Running the Project
 
@@ -151,7 +215,7 @@ Install the required packages:
 python -m pip install -r requirements.txt
 ```
 
-Run the nonlinear three-waypoint simulation:
+Run the original nonlinear three-waypoint simulation:
 
 ```powershell
 python -m scripts.run_nonlinear_three_waypoints
@@ -175,6 +239,30 @@ Generate the acceleration sensitivity figures from the saved sweep datasets:
 python -m scripts.plot_acceleration_sweep
 ```
 
+Run the Kalman state-estimation demonstration:
+
+```powershell
+python -m scripts.plot_kalman_estimation
+```
+
+Compare perfect-state and Kalman-estimated LQR control:
+
+```powershell
+python -m scripts.run_kalman_closed_loop
+```
+
+Run the Kalman measurement-noise sensitivity analysis:
+
+```powershell
+python -m scripts.run_kalman_sensitivity
+```
+
+Run the final holding-distance study:
+
+```powershell
+python -m scripts.run_kalman_hold_study
+```
+
 Run the automated tests:
 
 ```powershell
@@ -190,15 +278,17 @@ The main simplifying assumptions are:
 - The target begins in a circular reference orbit.
 - Gravity is modeled using the two-body approximation.
 - Control acceleration is continuous and can be applied in any direction.
-- Relative position and velocity are assumed to be known exactly.
-- Navigation sensor noise and state-estimation errors are not modeled.
+- The original baseline simulation assumes exact relative-state information.
+- The Kalman extension uses simulated noisy position measurements rather than actual spacecraft sensors.
+- The filter uses a linear HCW motion model, while the spacecraft is propagated using nonlinear two-body dynamics.
 - Orbital perturbations such as J2 and atmospheric drag are not included.
+- Individual thruster and attitude-control dynamics are not modeled.
 - The separation checks do not provide a formal collision-avoidance guarantee.
 
-The project focuses on implementing and testing a preliminary spacecraft guidance and control system under these assumptions.
+The project focuses on implementing and testing spacecraft guidance, navigation, and control methods under these simplified conditions.
 
 ## Tools
 
 **Python, NumPy, SciPy, Matplotlib, pytest**
 
-**Engineering topics:** Orbital mechanics, HCW relative motion, LQR control, nonlinear simulation, coordinate transformations, and sensitivity analysis.
+**Engineering topics:** Orbital mechanics, HCW relative motion, LQR control, Kalman filtering, nonlinear simulation, coordinate transformations, and sensitivity analysis.
